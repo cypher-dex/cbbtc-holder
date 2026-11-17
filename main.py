@@ -27,10 +27,10 @@ SELL_MAX_SLIPPAGE_BPS = 500
 
 
 class Plan:
-    """What the bot has done so far: entered once, and possibly stopped out."""
+    """What the bot has done so far: held a position once, and possibly stopped out."""
 
     def __init__(self):
-        self.entered = False
+        self.has_held = False
         self.done = False
         self.peak_close = 0
 
@@ -52,6 +52,7 @@ def on_batch(state, batch):
     qty = held_qty(state)
 
     if qty > 0:
+        plan.has_held = True
         plan.peak_close = max(plan.peak_close, close)
         if close * BPS < plan.peak_close * STOP_KEEP_BPS:
             # Sell everything; if the market refuses, the next bar retries while the
@@ -60,17 +61,18 @@ def on_batch(state, batch):
                      "max_slippage_bps": SELL_MAX_SLIPPAGE_BPS}]
         return None
 
-    if plan.entered:
-        # Flat after having entered: the stop sold the position. Never buy again.
+    if plan.has_held:
+        # Flat after having held: the stop sold the position. Never buy again.
         plan.done = True
         return None
 
+    # Not yet in: (re)send the entry. A refused buy (no bar, slippage) leaves us flat,
+    # so it is simply tried again on the next bar instead of sitting out the window.
     if state.seq - state.warmup_bars < ENTRY_BARS:
         return None
     spend = min(state.cash, state.equity)
     if spend < int(state.hello["fees"]["min_notional_quote_units"]):
         return None
-    plan.entered = True
     plan.peak_close = close
     return [{"side": "buy", "symbol": SYMBOL, "notional_quote_units": spend,
              "max_slippage_bps": BUY_MAX_SLIPPAGE_BPS}]
