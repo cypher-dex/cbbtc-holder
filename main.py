@@ -37,7 +37,7 @@ def on_batch(state, batch):
         if memory["bought"] or scored_bar < ENTRY_BARS:
             return None
         spend = min(state.cash, state.equity)
-        if spend < state.hello["fees"]["min_notional_quote_units"]:
+        if spend < int(state.hello["fees"]["min_notional_quote_units"]):
             return None
         memory["bought"] = True
         memory["peak"] = close
